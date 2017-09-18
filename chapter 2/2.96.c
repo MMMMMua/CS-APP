@@ -5,6 +5,7 @@
 
 typedef unsigned float_bits;
 const int bias = 127;
+
 int float_f2i(float_bits f) {
 	unsigned sign = f >> 31;
 	unsigned exp = f >> 23 & 0xFF;
@@ -29,5 +30,14 @@ int float_f2i(float_bits f) {
 }
 
 int main() {
-	
+	while (1) {
+		float flt;
+		unsigned x;
+
+		scanf("%f", &flt);
+		printf("%.10lf\n", flt);
+		memcpy(&x, &flt, sizeof(flt));
+
+		printf("%d\n", float_f2i(x));
+	}
 }
