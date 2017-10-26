@@ -15,14 +15,14 @@ int main() {
 	// 	:"%eax");		
 	// 	);
 
-	__asm__ __volatile__ (
-		"pushw %ax \n"
-		"pushf \n"
-		"popw %ax \n"
-		"movw x, %ax \n"
-		"popw %ax \n"		
-		);
-	printf("%d", x);
+	// __asm__ __volatile__ (
+	// 	"pushw %ax \n"
+	// 	"pushf \n"
+	// 	"popw %ax \n"
+	// 	"movw x, %ax \n"
+	// 	"popw %ax \n"		
+	// 	);
+	// printf("%d", x);
 	
 	// asm __volatile__("pushw %ax");
 	// asm __volatile__("pushf");
@@ -42,5 +42,10 @@ int main() {
 	// asm ("mov x, %EFLAGS");
 	// cout << x << endl;
 	// cout << b << endl;
+
+	asm ("movw $0x7FFF, %ax");
+	asm ("movw $0x1, %bx");
+	asm ("add %ax, %bx");
+	
 	return 0;
 }
