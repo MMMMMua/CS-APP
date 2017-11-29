@@ -31,7 +31,7 @@ looplast:
 	rrmovq %r8, %rax #set i to 0
 	rrmovq %rdi, %rcx #rcx is data[i]
 	jmp testi
-
+ 
 loopi:
 	rrmovq %r8, %r14	
 	mrmovq (%rcx), %r11 #data[i]
