@@ -1,0 +1,62 @@
+                            | # *data in %rdi, count in %rsi
+0x000:                      | 	.pos 0
+0x000: 30f40002000000000000 | 	irmovq stack, %rsp
+0x00a: 803800000000000000   | 	call main
+0x013: 00                   | 	halt
+                            | 
+0x018:                      | 	.align 8
+0x018:                      | array:
+0x018: 0100000000000000     | 	.quad 0x0000000000000001
+0x020: 0300000000000000     | 	.quad 0x0000000000000003
+0x028: 0400000000000000     | 	.quad 0x0000000000000004
+0x030: 0200000000000000     | 	.quad 0x0000000000000002
+                            | 	
+0x038:                      | main:
+0x038: 30f71800000000000000 | 	irmovq array, %rdi
+0x042: 30f60400000000000000 | 	irmovq $4, %rsi
+0x04c: 805600000000000000   | 	call bubble
+0x055: 90                   | 	ret
+                            | 	
+0x056:                      | bubble:	
+                            | 	# i in %rax, last in %rbx	
+0x056: 2063                 | 	rrmovq %rsi, %rbx
+0x058: 30f80000000000000000 | 	irmovq $0, %r8
+0x062: 30f90100000000000000 | 	irmovq $1, %r9
+0x06c: 30fa0800000000000000 | 	irmovq $8, %r10
+0x076: 6193                 | 	subq %r9, %rbx
+0x078: 70d700000000000000   | 	jmp testlast
+                            | 
+0x081:                      | looplast:	
+0x081: 2080                 | 	rrmovq %r8, %rax #set i to 0
+0x083: 2071                 | 	rrmovq %rdi, %rcx #rdi is data[i]
+0x085: 70c800000000000000   | 	jmp testi
+                            | 
+0x08e:                      | loopi:
+0x08e: 50b70000000000000000 | 	mrmovq (%rcx), %r11
+0x098: 50c70800000000000000 | 	mrmovq 8(%rcx), %r12
+0x0a2: 20bd                 | 	rrmovq %r11, %r13
+0x0a4: 61cd                 | 	subq %r12, %r13 #data[i] - data[i+1]
+0x0a6: 208e                 | 	rrmovq %r8, %r14
+0x0a8: 22de                 | 	cmovl %r13, %r14
+0x0aa: 60cb                 | 	addq %r12, %r11
+0x0ac: 60ec                 | 	addq %r14, %r12
+0x0ae: 61cb                 | 	subq %r12, %r11
+0x0b0: 40b70000000000000000 | 	rmmovq %r11, (%rdi)
+0x0ba: 40c70800000000000000 | 	rmmovq %r12, 0x8(%rdi)
+0x0c4: 6090                 | 	addq %r9, %rax #inc i by 1 
+0x0c6: 60a7                 | 	addq %r10, %rdi # rdi points to data[i+1]
+                            | 	
+0x0c8:                      | testi:
+0x0c8: 2002                 | 	rrmovq %rax, %rdx #make a copy of i
+0x0ca: 6132                 | 	subq %rbx, %rdx #i - last
+0x0cc: 728e00000000000000   | 	jl loopi
+0x0d5: 6193                 | 	subq %r9, %rbx #dec last by 1
+                            | 	
+0x0d7:                      | testlast:
+0x0d7: 6183                 | 	subq %r8, %rbx
+0x0d9: 768100000000000000   | 	jg looplast
+0x0e2: 90                   | 	ret
+                            | 
+                            | #stack starts here and grows to lower addresses.
+0x200:                      | 	.pos 0x200
+0x200:                      | stack:	

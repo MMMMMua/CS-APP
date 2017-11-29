@@ -1,0 +1,68 @@
+	.pos 0	
+	irmovq stack, %rsp
+	call main
+	halt
+	
+	.align 8
+array:	
+	.quad 0x0000000000000000
+	.quad 0x0000000000000001
+	.quad 0x0000000000000002
+	.quad 0x0000000000000003
+	.quad 0x0000000000000004
+	.quad 0x0000000000000005
+	.quad 0x0000000000000006
+	.quad 0x0000000000000007
+
+main:
+	irmovq $8, %r8
+	irmovq $1, %r9
+	irmovq array, %rdi
+	xorq %rax, %rax
+	jmp testmi
+	
+loopmi:	
+	pushq %rax
+	mrmovq (%rdi), %rsi
+	call switchv
+	rmmovq %rax, (%rdi)
+	popq %rax
+	addq %r8, %rdi
+	addq %r9, %rax
+	
+testmi:
+	subq %rax, %r8
+	jg loopmi
+	ret
+
+switchv:
+	irmovq jmptable, %rdx
+	irmovq $5, %r10
+	subq %rsi, %r10
+	jl case_def
+	addq %rdx, %rsi
+	jmp %rsi
+	
+case0:
+	irmovq $0xaaa, %rax
+	ret
+	
+case25:
+	irmovq $0xbbb, %rax
+	ret
+	
+case3:
+	irmovq $0xccc, %rax
+	ret
+	
+case_def:
+	irmovq $0xddd, %rax
+	ret
+
+jmptable:
+	.quad case0
+	.quad case_def
+	.quad case25
+	.quad case3
+	.quad case_def
+	.quad case25	

@@ -44,17 +44,18 @@ int main(int argc, char *argv[])
     if (argc > 2)
 	max_steps = atoi(argv[2]);
 
-    for (step = 0; step < max_steps && e == STAT_AOK; step++)
-	e = step_state(s, stdout);
+    for (step = 0; step < max_steps && e == STAT_AOK; step++) {
+		e = step_state(s, stdout);
 
-    printf("Stopped in %d steps at PC = 0x%llx.  Status '%s', CC %s\n",
-	   step, s->pc, stat_name(e), cc_name(s->cc));
+		printf("Stopped in %d steps at PC = 0x%llx.  Status '%s', CC %s\n",
+			   step, s->pc, stat_name(e), cc_name(s->cc));
 
-    printf("Changes to registers:\n");
-    diff_reg(saver, s->r, stdout);
+		printf("Changes to registers:\n");
+		diff_reg(saver, s->r, stdout);
 
-    printf("\nChanges to memory:\n");
-    diff_mem(savem, s->m, stdout);
+		printf("\nChanges to memory:\n");
+		diff_mem(savem, s->m, stdout);
+	}
 
     free_state(s);
     free_reg(saver);
