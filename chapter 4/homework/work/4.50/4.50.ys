@@ -40,6 +40,9 @@ switchv:
 	irmovq $5, %r10
 	subq %rsi, %r10
 	jl case_def
+	addq %rsi, %rsi
+	addq %rsi, %rsi
+	addq %rsi, %rsi # rsi *= 8
 	addq %rdx, %rsi
 	jmp %rsi
 	

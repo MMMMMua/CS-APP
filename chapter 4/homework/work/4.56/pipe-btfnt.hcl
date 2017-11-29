@@ -4,10 +4,11 @@
 #    Copyright (C) Randal E. Bryant, David R. O'Hallaron, 2014     #
 ####################################################################
 
-## Your task is to implement the iaddq instruction
-## The file contains a declaration of the icodes
-## for iaddq (IIADDQ)
-## Your job is to add the rest of the logic to make it work
+## Your task is to modify the design so that conditional branches are
+## predicted as being taken when backward and not-taken when forward
+## The code here is nearly identical to that for the normal pipeline.  
+## Comments starting with keyword "BBTFNT" have been added at places
+## relevant to the exercise.
 
 ####################################################################
 #    C Include's.  Don't alter these                               #
@@ -38,8 +39,6 @@ wordsig ICALL	'I_CALL'
 wordsig IRET	'I_RET'
 wordsig IPUSHQ	'I_PUSHQ'
 wordsig IPOPQ	'I_POPQ'
-# Instruction code for iaddq instruction
-wordsig IIADDQ	'I_IADDQ'
 
 ##### Symbolic represenations of Y86-64 function codes            #####
 wordsig FNONE    'F_NONE'        # Default function code
@@ -50,6 +49,10 @@ wordsig RNONE    'REG_NONE'   	     # Special value indicating "no register"
 
 ##### ALU Functions referenced explicitly ##########################
 wordsig ALUADD	'A_ADD'		     # ALU should add its arguments
+## BBTFNT: For modified branch prediction, need to distinguish
+## conditional vs. unconditional branches
+##### Jump conditions referenced explicitly
+wordsig UNCOND 'C_YES'       	     # Unconditional transfer
 
 ##### Possible instruction status values                       #####
 wordsig SBUB	'STAT_BUB'	# Bubble in stage
@@ -158,7 +161,7 @@ word f_ifun = [
 # Is instruction valid?
 bool instr_valid = f_icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ };
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
 
 # Determine status code for fetched instruction
 word f_stat = [
@@ -171,18 +174,18 @@ word f_stat = [
 # Does fetched instruction require a regid byte?
 bool need_regids =
 	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
-		     IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ };
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ };
 
 # Does fetched instruction require a constant word?
 bool need_valC =
-	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ };
+	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL };
 
 # Predict next value of PC
 word f_predPC = [
+	# BBTFNT: This is where you'll change the branch prediction rule
 	f_icode in { IJXX, ICALL } : f_valC;
+	f_valC < f_calP : f_valC;
 	1 : f_valP;
-];
-
 ################ Decode Stage ######################################
 
 
@@ -195,14 +198,14 @@ word d_srcA = [
 
 ## What register should be used as the B source?
 word d_srcB = [
-	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ  } : D_rB;
+	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ  } : D_rB;
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't need register
 ];
 
 ## What register should be used as the E destination?
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IIADDQ  } : D_rB;
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB;
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
@@ -236,10 +239,14 @@ word d_valB = [
 
 ################ Execute Stage #####################################
 
+# BBTFNT: When some branches are predicted as not-taken, you need some
+# way to get valC into pipeline register M, so that
+# you can correct for a mispredicted branch.
+
 ## Select input A to ALU
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
-	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ  } : E_valC;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
 	E_icode in { ICALL, IPUSHQ } : -8;
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
@@ -248,7 +255,7 @@ word aluA = [
 ## Select input B to ALU
 word aluB = [
 	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
-		     IPUSHQ, IRET, IPOPQ, IIADDQ } : E_valB;
+		     IPUSHQ, IRET, IPOPQ } : E_valB;
 	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
 	# Other instructions don't need ALU
 ];
@@ -260,7 +267,7 @@ word alufun = [
 ];
 
 ## Should the condition codes be updated?
-bool set_cc = (E_icode == IOPQ || E_icode == IIADDQ) &&
+bool set_cc = E_icode == IOPQ &&
 	# State changes only during normal operation
 	!m_stat in { SADR, SINS, SHLT } && !W_stat in { SADR, SINS, SHLT };
 
@@ -336,6 +343,7 @@ bool D_stall =
 bool D_bubble =
 	# Mispredicted branch
 	(E_icode == IJXX && !e_Cnd) ||
+	# BBTFNT: This condition will change
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
 	!(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
@@ -347,6 +355,7 @@ bool E_stall = 0;
 bool E_bubble =
 	# Mispredicted branch
 	(E_icode == IJXX && !e_Cnd) ||
+	# BBTFNT: This condition will change
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
 	 E_dstM in { d_srcA, d_srcB};

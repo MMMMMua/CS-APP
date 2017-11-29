@@ -4,10 +4,10 @@
 #    Copyright (C) Randal E. Bryant, David R. O'Hallaron, 2014     #
 ####################################################################
 
-## Your task is to implement the iaddq instruction
-## The file contains a declaration of the icodes
-## for iaddq (IIADDQ)
-## Your job is to add the rest of the logic to make it work
+## Your task is to make the pipeline work without using any forwarding
+## The normal bypassing logic in the file is disabled.
+## You can only change the pipeline control logic at the end of this file.
+## The trick is to make the pipeline stall whenever there is a data hazard.
 
 ####################################################################
 #    C Include's.  Don't alter these                               #
@@ -38,8 +38,6 @@ wordsig ICALL	'I_CALL'
 wordsig IRET	'I_RET'
 wordsig IPUSHQ	'I_PUSHQ'
 wordsig IPOPQ	'I_POPQ'
-# Instruction code for iaddq instruction
-wordsig IIADDQ	'I_IADDQ'
 
 ##### Symbolic represenations of Y86-64 function codes            #####
 wordsig FNONE    'F_NONE'        # Default function code
@@ -158,7 +156,7 @@ word f_ifun = [
 # Is instruction valid?
 bool instr_valid = f_icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ };
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
 
 # Determine status code for fetched instruction
 word f_stat = [
@@ -171,11 +169,11 @@ word f_stat = [
 # Does fetched instruction require a regid byte?
 bool need_regids =
 	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
-		     IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ };
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ };
 
 # Does fetched instruction require a constant word?
 bool need_valC =
-	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ };
+	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL };
 
 # Predict next value of PC
 word f_predPC = [
@@ -195,14 +193,14 @@ word d_srcA = [
 
 ## What register should be used as the B source?
 word d_srcB = [
-	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ  } : D_rB;
+	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ  } : D_rB;
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't need register
 ];
 
 ## What register should be used as the E destination?
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IIADDQ  } : D_rB;
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB;
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
@@ -214,32 +212,22 @@ word d_dstM = [
 ];
 
 ## What should be the A value?
-## Forward into decode stage for valA
+##  DO NOT MODIFY THE FOLLOWING CODE.
+## No forwarding.  valA is either valP or value from register file
 word d_valA = [
 	D_icode in { ICALL, IJXX } : D_valP; # Use incremented PC
-	d_srcA == e_dstE : e_valE;    # Forward valE from execute
-	d_srcA == M_dstM : m_valM;    # Forward valM from memory
-	d_srcA == M_dstE : M_valE;    # Forward valE from memory
-	d_srcA == W_dstM : W_valM;    # Forward valM from write back
-	d_srcA == W_dstE : W_valE;    # Forward valE from write back
 	1 : d_rvalA;  # Use value read from register file
 ];
 
-word d_valB = [
-	d_srcB == e_dstE : e_valE;    # Forward valE from execute
-	d_srcB == M_dstM : m_valM;    # Forward valM from memory
-	d_srcB == M_dstE : M_valE;    # Forward valE from memory
-	d_srcB == W_dstM : W_valM;    # Forward valM from write back
-	d_srcB == W_dstE : W_valE;    # Forward valE from write back
-	1 : d_rvalB;  # Use value read from register file
-];
+## No forwarding.  valB is value from register file
+word d_valB = d_rvalB;
 
 ################ Execute Stage #####################################
 
 ## Select input A to ALU
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
-	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ  } : E_valC;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
 	E_icode in { ICALL, IPUSHQ } : -8;
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
@@ -248,7 +236,7 @@ word aluA = [
 ## Select input B to ALU
 word aluB = [
 	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
-		     IPUSHQ, IRET, IPOPQ, IIADDQ } : E_valB;
+		     IPUSHQ, IRET, IPOPQ } : E_valB;
 	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
 	# Other instructions don't need ALU
 ];
@@ -260,7 +248,7 @@ word alufun = [
 ];
 
 ## Should the condition codes be updated?
-bool set_cc = (E_icode == IOPQ || E_icode == IIADDQ) &&
+bool set_cc = E_icode == IOPQ &&
 	# State changes only during normal operation
 	!m_stat in { SADR, SINS, SHLT } && !W_stat in { SADR, SINS, SHLT };
 
@@ -320,25 +308,24 @@ word Stat = [
 # At most one of these can be true.
 bool F_bubble = 0;
 bool F_stall =
-	# Conditions for a load/use hazard
-	E_icode in { IMRMOVQ, IPOPQ } &&
-	 E_dstM in { d_srcA, d_srcB } ||
+	# Modify the following to stall the update of pipeline register F
+	0 ||
 	# Stalling at fetch while ret passes through pipeline
 	IRET in { D_icode, E_icode, M_icode };
 
 # Should I stall or inject a bubble into Pipeline Register D?
 # At most one of these can be true.
 bool D_stall = 
-	# Conditions for a load/use hazard
-	E_icode in { IMRMOVQ, IPOPQ } &&
-	 E_dstM in { d_srcA, d_srcB };
+	# Modify the following to stall the instruction in decode
+	0;
 
 bool D_bubble =
 	# Mispredicted branch
 	(E_icode == IJXX && !e_Cnd) ||
 	# Stalling at fetch while ret passes through pipeline
-	# but not condition for a load/use hazard
 	!(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
+	# but not condition for a generate/use hazard
+	!0 &&
 	  IRET in { D_icode, E_icode, M_icode };
 
 # Should I stall or inject a bubble into Pipeline Register E?
@@ -347,9 +334,8 @@ bool E_stall = 0;
 bool E_bubble =
 	# Mispredicted branch
 	(E_icode == IJXX && !e_Cnd) ||
-	# Conditions for a load/use hazard
-	E_icode in { IMRMOVQ, IPOPQ } &&
-	 E_dstM in { d_srcA, d_srcB};
+	# Modify the following to inject bubble into the execute stage
+	0;
 
 # Should I stall or inject a bubble into Pipeline Register M?
 # At most one of these can be true.
