@@ -139,7 +139,7 @@ wordsig W_valM  'mem_wb_curr->valm'	# Memory M value
 ## What address should instruction be fetched at
 word f_pc = [
 	# Mispredicted branch.  Fetch at incremented PC
-	M_icode == IJXX && !M_Cnd : M_valA;
+	(M_icode == IJXX && (M_ifun == 0 || M_valE < M_valA)) && !M_Cnd : M_valA;
 	# Completion of RET instruction
 	W_icode == IRET : W_valM;
 	# Default: Use predicted value of PC
@@ -247,7 +247,7 @@ word d_valB = [
 ## Select input A to ALU
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
-	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ , IJXX} : E_valC;
 	E_icode in { ICALL, IPUSHQ } : -8;
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
@@ -340,10 +340,9 @@ bool D_stall =
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
 	 E_dstM in { d_srcA, d_srcB };
-
-bool D_bubble =
+bool D_bubble = 
 	# Mispredicted branch
-	(E_icode == IJXX && !e_Cnd) ||
+	((E_icode == IJXX && (E_ifun == 0 || E_valC < E_valA)) && !e_Cnd) ||
 	# BBTFNT: This condition will change
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
@@ -355,18 +354,18 @@ bool D_bubble =
 bool E_stall = 0;
 bool E_bubble =
 	# Mispredicted branch
-	(E_icode == IJXX && !e_Cnd) ||
+	((E_icode == IJXX && (E_ifun == 0 || E_valC < E_valA)) && !e_Cnd) ||
 	# BBTFNT: This condition will change
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
 	 E_dstM in { d_srcA, d_srcB};
 
+
 # Should I stall or inject a bubble into Pipeline Register M?
 # At most one of these can be true.
 bool M_stall = 0;
 # Start injecting bubbles as soon as exception passes through memory stage
-# bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT };
-bool M_bubble = 0;
+bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT };
 
 # Should I stall or inject a bubble into Pipeline Register W?
 bool W_stall = W_stat in { SADR, SINS, SHLT };

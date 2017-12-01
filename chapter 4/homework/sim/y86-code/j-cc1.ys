@@ -1,3 +1,11 @@
+	jmp main
+target:
+	addq %rsi,%rdx
+	nop
+    nop
+    nop
+	halt
+main:	
 	irmovq $1, %rsi
 	irmovq $2, %rdi
 	irmovq $4, %rbp
@@ -10,10 +18,4 @@
 	irmovq $3, %r10
 	irmovq $4, %r11
 	irmovq $5, %r12
-	halt
-target:
-	addq %rsi,%rdx
-	nop
-    nop
-    nop
 	halt

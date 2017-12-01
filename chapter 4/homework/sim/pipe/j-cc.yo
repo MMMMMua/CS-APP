@@ -4,16 +4,16 @@
 0x01e: 30f0e0ffffffffffffff | 	irmovq $-32, %rax
 0x028: 30f24000000000000000 | 	irmovq $64, %rdx
 0x032: 6120                 | 	subq %rdx,%rax
-0x034: 734300000000000000   | 	je target
-0x03d: 10                   | 	nop
-0x03e: 10                   | 	nop	
-0x03f: 10                   | 	nop
-0x040: 10                   | 	nop
-0x041: 10                   | 	nop
-0x042: 00                   | 	halt
-0x043:                      | target:
-0x043: 6062                 | 	addq %rsi,%rdx
-0x045: 10                   | 	nop
-0x046: 10                   |     nop
-0x047: 10                   |     nop
-0x048: 00                   | 	halt
+0x034: 737000000000000000   | 	je target
+0x03d: 30f80100000000000000 | 	irmovq $1, %r8
+0x047: 30f90200000000000000 | 	irmovq $2, %r9
+0x051: 30fa0300000000000000 | 	irmovq $3, %r10
+0x05b: 30fb0400000000000000 | 	irmovq $4, %r11
+0x065: 30fc0500000000000000 | 	irmovq $5, %r12
+0x06f: 00                   | 	halt
+0x070:                      | target:
+0x070: 6062                 | 	addq %rsi,%rdx
+0x072: 10                   | 	nop
+0x073: 10                   |     nop
+0x074: 10                   |     nop
+0x075: 00                   | 	halt

@@ -139,7 +139,7 @@ wordsig W_valM  'mem_wb_curr->valm'	# Memory M value
 ## What address should instruction be fetched at
 word f_pc = [
 	# Mispredicted branch.  Fetch at incremented PC
-	M_icode == IJXX && !M_Cnd : M_valA;
+	(M_icode == IJXX && (M_ifun == 0 || M_valE < M_valA)) && !M_Cnd : M_valA;
 	# Completion of RET instruction
 	W_icode == IRET : W_valM;
 	# Default: Use predicted value of PC
@@ -184,8 +184,7 @@ bool need_valC =
 word f_predPC = [
 	# BBTFNT: This is where you'll change the branch prediction rule
 	# f_icode in { IJXX, ICALL } : f_valC;
-	(f_icode == IJXX && f_ifun == 0) || (f_icode == ICALL) : f_valC;
-	f_icode == IJXX && f_valC < f_valP : f_valC; 
+	(f_icode == IJXX && (f_ifun == 0 || f_valC < f_valP)) || (f_icode == ICALL) : f_valC;
 	1 : f_valP;
 ];
 ################ Decode Stage ######################################
@@ -248,7 +247,7 @@ word d_valB = [
 ## Select input A to ALU
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
-	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ , IJXX} : E_valC;
 	E_icode in { ICALL, IPUSHQ } : -8;
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
@@ -341,10 +340,9 @@ bool D_stall =
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
 	 E_dstM in { d_srcA, d_srcB };
-
-bool D_bubble =
+bool D_bubble = 
 	# Mispredicted branch
-	(E_icode == IJXX && !e_Cnd) ||
+	((E_icode == IJXX && (E_ifun == 0 || E_valC < E_valA)) && !e_Cnd) ||
 	# BBTFNT: This condition will change
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
@@ -356,11 +354,12 @@ bool D_bubble =
 bool E_stall = 0;
 bool E_bubble =
 	# Mispredicted branch
-	(E_icode == IJXX && !e_Cnd) ||
+	((E_icode == IJXX && (E_ifun == 0 || E_valC < E_valA)) && !e_Cnd) ||
 	# BBTFNT: This condition will change
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
 	 E_dstM in { d_srcA, d_srcB};
+
 
 # Should I stall or inject a bubble into Pipeline Register M?
 # At most one of these can be true.
@@ -373,10 +372,10 @@ bool W_stall = W_stat in { SADR, SINS, SHLT };
 bool W_bubble = 0;
 #/* $end pipe-all-hcl */
 
-from normal pipe simulation
 
-# from pipe-btfnt simulation
-# 15 instructions executed
+# btfnt 的结果
+
+# 17 instructions executed
 # Status = HLT
 # Condition Codes: Z=0 S=1 O=0
 # Changed Register State:
@@ -385,10 +384,18 @@ from normal pipe simulation
 # %rbp:   0x0000000000000000      0x0000000000000004
 # %rsi:   0x0000000000000000      0x0000000000000001
 # %rdi:   0x0000000000000000      0x0000000000000002
+# %r8:    0x0000000000000000      0x0000000000000001
+# %r9:    0x0000000000000000      0x0000000000000002
+# %r10:   0x0000000000000000      0x0000000000000003
+# %r11:   0x0000000000000000      0x0000000000000004
+# %r12:   0x0000000000000000      0x0000000000000005
 # Changed Memory State:
+# CPI: 13 cycles/13 instructions = 1.00
 
-# from seq simulation.
-# 9 instructions executed
+
+# std 的结果
+
+# 19 instructions executed
 # Status = HLT
 # Condition Codes: Z=0 S=1 O=0
 # Changed Register State:
@@ -397,4 +404,35 @@ from normal pipe simulation
 # %rbp:   0x0000000000000000      0x0000000000000004
 # %rsi:   0x0000000000000000      0x0000000000000001
 # %rdi:   0x0000000000000000      0x0000000000000002
+# %r8:    0x0000000000000000      0x0000000000000001
+# %r9:    0x0000000000000000      0x0000000000000002
+# %r10:   0x0000000000000000      0x0000000000000003
+# %r11:   0x0000000000000000      0x0000000000000004
+# %r12:   0x0000000000000000      0x0000000000000005
 # Changed Memory State:
+# CPI: 15 cycles/13 instructions = 1.15
+
+# 可以发现他们的执行结果相同, 但是 btfnt 的执行速度更快(执行的命令更少), 同时 cpi(cycle per instruction) 也更高.
+
+#　下面是测试所用的代码:
+
+# 0x000: 30f60100000000000000 | 	irmovq $1, %rsi
+# 0x00a: 30f70200000000000000 | 	irmovq $2, %rdi
+# 0x014: 30f50400000000000000 | 	irmovq $4, %rbp
+# 0x01e: 30f0e0ffffffffffffff | 	irmovq $-32, %rax
+# 0x028: 30f24000000000000000 | 	irmovq $64, %rdx
+# 0x032: 6120                 | 	subq %rdx,%rax
+# 0x034: 737000000000000000   | 	je target
+# 0x03d: 30f80100000000000000 | 	irmovq $1, %r8
+# 0x047: 30f90200000000000000 | 	irmovq $2, %r9
+# 0x051: 30fa0300000000000000 | 	irmovq $3, %r10
+# 0x05b: 30fb0400000000000000 | 	irmovq $4, %r11
+# 0x065: 30fc0500000000000000 | 	irmovq $5, %r12
+# 0x06f: 00                   | 	halt
+# 0x070:                      | target:
+# 0x070: 6062                 | 	addq %rsi,%rdx
+# 0x072: 10                   | 	nop
+# 0x073: 10                   |     nop
+# 0x074: 10                   |     nop
+# 0x075: 00                   | 	halt
+

@@ -1,4 +1,4 @@
-char simname[] = "Y86-64 Processor: pipe-btfnt.hcl";
+char simname[] = "Y86-64 Processor: pipe-std.hcl";
 #include <stdio.h>
 #include "isa.h"
 #include "pipeline.h"
@@ -58,10 +58,8 @@ long long gen_need_valC()
 
 long long gen_f_predPC()
 {
-    return (((((if_id_next->icode) == (I_JMP)) & (((if_id_next->ifun) == 0)
-             | ((if_id_next->valc) < (if_id_next->valp)))) | (
-          (if_id_next->icode) == (I_CALL))) ? (if_id_next->valc) : 
-      (if_id_next->valp));
+    return (((if_id_next->icode) == (I_JMP) || (if_id_next->icode) == 
+        (I_CALL)) ? (if_id_next->valc) : (if_id_next->valp));
 }
 
 long long gen_d_srcA()
@@ -268,7 +266,10 @@ long long gen_M_stall()
 
 long long gen_M_bubble()
 {
-    return 0;
+    return (((mem_wb_next->status) == (STAT_ADR) || (mem_wb_next->status)
+         == (STAT_INS) || (mem_wb_next->status) == (STAT_HLT)) | (
+        (mem_wb_curr->status) == (STAT_ADR) || (mem_wb_curr->status) == 
+        (STAT_INS) || (mem_wb_curr->status) == (STAT_HLT)));
 }
 
 long long gen_W_stall()
