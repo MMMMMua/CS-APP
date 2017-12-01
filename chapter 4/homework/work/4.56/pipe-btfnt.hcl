@@ -183,9 +183,11 @@ bool need_valC =
 # Predict next value of PC
 word f_predPC = [
 	# BBTFNT: This is where you'll change the branch prediction rule
-	f_icode in { IJXX, ICALL } : f_valC;
-	f_valC < f_calP : f_valC;
+	# f_icode in { IJXX, ICALL } : f_valC;
+	(f_icode == IJXX && f_ifun == 0) || (f_icode == ICALL) : f_valC;
+	f_icode == IJXX && f_valC < f_valP : f_valC; 
 	1 : f_valP;
+];
 ################ Decode Stage ######################################
 
 
@@ -370,3 +372,29 @@ bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT }
 bool W_stall = W_stat in { SADR, SINS, SHLT };
 bool W_bubble = 0;
 #/* $end pipe-all-hcl */
+
+from normal pipe simulation
+
+# from pipe-btfnt simulation
+# 15 instructions executed
+# Status = HLT
+# Condition Codes: Z=0 S=1 O=0
+# Changed Register State:
+# %rax:   0x0000000000000000      0xffffffffffffffa0
+# %rdx:   0x0000000000000000      0x0000000000000040
+# %rbp:   0x0000000000000000      0x0000000000000004
+# %rsi:   0x0000000000000000      0x0000000000000001
+# %rdi:   0x0000000000000000      0x0000000000000002
+# Changed Memory State:
+
+# from seq simulation.
+# 9 instructions executed
+# Status = HLT
+# Condition Codes: Z=0 S=1 O=0
+# Changed Register State:
+# %rax:   0x0000000000000000      0xffffffffffffffa0
+# %rdx:   0x0000000000000000      0x0000000000000040
+# %rbp:   0x0000000000000000      0x0000000000000004
+# %rsi:   0x0000000000000000      0x0000000000000001
+# %rdi:   0x0000000000000000      0x0000000000000002
+# Changed Memory State:

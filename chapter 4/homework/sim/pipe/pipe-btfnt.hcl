@@ -183,10 +183,10 @@ bool need_valC =
 # Predict next value of PC
 word f_predPC = [
 	# BBTFNT: This is where you'll change the branch prediction rule
-	f_icode in { IJXX, ICALL } : f_valC;
+	# f_icode in { IJXX, ICALL } : f_valC;
+	(f_icode == IJXX && (f_ifun == 0 || f_valC < f_valP)) || (f_icode == ICALL) : f_valC;
 	1 : f_valP;
 ];
-
 ################ Decode Stage ######################################
 
 
@@ -365,7 +365,8 @@ bool E_bubble =
 # At most one of these can be true.
 bool M_stall = 0;
 # Start injecting bubbles as soon as exception passes through memory stage
-bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT };
+# bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT };
+bool M_bubble = 0;
 
 # Should I stall or inject a bubble into Pipeline Register W?
 bool W_stall = W_stat in { SADR, SINS, SHLT };

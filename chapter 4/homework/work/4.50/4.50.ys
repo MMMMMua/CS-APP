@@ -31,7 +31,8 @@ loopmi:
 	addq %r9, %rax
 	
 testmi:
-	subq %rax, %r8
+	irmovq $8, %r12
+	subq %rax, %r12
 	jg loopmi
 	ret
 
@@ -43,8 +44,10 @@ switchv:
 	addq %rsi, %rsi
 	addq %rsi, %rsi
 	addq %rsi, %rsi # rsi *= 8
-	addq %rdx, %rsi
-	jmp %rsi
+	addq %rsi, %rdx
+	mrmovq (%rdx), %r11
+	pushq %r11
+	ret
 	
 case0:
 	irmovq $0xaaa, %rax
@@ -69,3 +72,20 @@ jmptable:
 	.quad case3
 	.quad case_def
 	.quad case25	
+
+	.pos 0x200
+stack:	
+
+
+	# 执行结果如下:
+	# 	Changed Memory State:
+	# 0x0018: 0x0000000000000000      0x0000000000000aaa
+	# 0x0020: 0x0000000000000001      0x0000000000000ddd
+	# 0x0028: 0x0000000000000002      0x0000000000000bbb
+	# 0x0030: 0x0000000000000003      0x0000000000000ccc
+	# 0x0038: 0x0000000000000004      0x0000000000000ddd
+	# 0x0040: 0x0000000000000005      0x0000000000000bbb
+	# 0x0048: 0x0000000000000006      0x0000000000000ddd
+	# 0x0050: 0x0000000000000007      0x0000000000000ddd
+	# 可以发现, 相关的地址全部变成了相应的返回值.
+	# 显然, 这个程序可以进入 default 的情况.

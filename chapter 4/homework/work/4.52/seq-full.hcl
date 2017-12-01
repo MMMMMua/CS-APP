@@ -106,7 +106,7 @@ word ifun = [
 
 bool instr_valid = icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	       IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
+	       IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ };
 
 # Does fetched instruction require a regid byte?
 bool need_regids =
@@ -222,3 +222,61 @@ word new_pc = [
 	1 : valP;
 ];
 #/* $end seq-all-hcl */
+
+
+# 以下是执行 asumi.yo 的结果:
+
+# 32 instructions executed
+# Status = HLT
+# Condition Codes: Z=1 S=0 O=0
+# Changed Register State:
+# %rax:   0x0000000000000000      0x0000abcdabcdabcd
+# %rsp:   0x0000000000000000      0x0000000000000100
+# %rdi:   0x0000000000000000      0x0000000000000038
+# %r10:   0x0000000000000000      0x0000a000a000a000
+# Changed Memory State:
+# 0x00f0: 0x0000000000000000      0x0000000000000055
+# 0x00f8: 0x0000000000000000      0x0000000000000013
+
+# 其中asumi.yo 程序如下:
+
+#                             | # Execution begins at address 0 
+# 0x000:                      | 	.pos 0 
+# 0x000: 30f40001000000000000 | 	irmovq stack, %rsp  	# Set up stack pointer  
+# 0x00a: 803800000000000000   | 	call main		# Execute main program
+# 0x013: 00                   | 	halt			# Terminate program 
+#                             | 
+#                             | # Array of 4 elements
+# 0x018:                      | 	.align 8 	
+# 0x018: 0d000d000d000000     | array:	.quad 0x000d000d000d
+# 0x020: c000c000c0000000     | 	.quad 0x00c000c000c0
+# 0x028: 000b000b000b0000     | 	.quad 0x0b000b000b00
+# 0x030: 00a000a000a00000     | 	.quad 0xa000a000a000
+#                             | 
+# 0x038: 30f71800000000000000 | main:	irmovq array,%rdi	
+# 0x042: 30f60400000000000000 | 	irmovq $4,%rsi
+# 0x04c: 805600000000000000   | 	call sum		# sum(array, 4)
+# 0x055: 90                   | 	ret 
+#                             | 
+#                             | /* $begin sumi-ys */
+#                             | # long sum(long *start, long count)
+#                             | # start in %rdi, count in %rsi
+# 0x056:                      | sum:
+# 0x056: 6300                 | 	xorq %rax,%rax		# sum = 0
+# 0x058: 6266                 | 	andq %rsi,%rsi		# Set condition codes
+# 0x05a: 708300000000000000   | 	jmp    test
+# 0x063:                      | loop:
+# 0x063: 50a70000000000000000 | 	mrmovq (%rdi),%r10	# Get *start
+# 0x06d: 60a0                 | 	addq %r10,%rax          # Add to sum
+# 0x06f: c0f70800000000000000 | 	iaddq $8,%rdi           # start++
+# 0x079: c0f6ffffffffffffffff | 	iaddq $-1,%rsi          # count--
+# 0x083:                      | test:
+# 0x083: 746300000000000000   | 	jne    loop             # Stop when 0
+# 0x08c: 90                   | 	ret
+#                             | /* $end sumi-ys */
+#                             | 
+#                             | # The stack starts here and grows to lower addresses
+# 0x100:                      | 	.pos 0x100		
+# 0x100:                      | stack:
+
+# 可以发现, iaddq 是正常执行的. 

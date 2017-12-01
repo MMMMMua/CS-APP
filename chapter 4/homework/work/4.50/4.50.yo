@@ -1,0 +1,77 @@
+0x000:                      | 	.pos 0	
+0x000: 30f40002000000000000 | 	irmovq stack, %rsp
+0x00a: 805800000000000000   | 	call main
+0x013: 00                   | 	halt
+                            | 	
+0x018:                      | 	.align 8
+0x018:                      | array:	
+0x018: 0000000000000000     | 	.quad 0x0000000000000000
+0x020: 0100000000000000     | 	.quad 0x0000000000000001
+0x028: 0200000000000000     | 	.quad 0x0000000000000002
+0x030: 0300000000000000     | 	.quad 0x0000000000000003
+0x038: 0400000000000000     | 	.quad 0x0000000000000004
+0x040: 0500000000000000     | 	.quad 0x0000000000000005
+0x048: 0600000000000000     | 	.quad 0x0000000000000006
+0x050: 0700000000000000     | 	.quad 0x0000000000000007
+                            | 
+0x058:                      | main:
+0x058: 30f80800000000000000 | 	irmovq $8, %r8
+0x062: 30f90100000000000000 | 	irmovq $1, %r9
+0x06c: 30f71800000000000000 | 	irmovq array, %rdi
+0x076: 6300                 | 	xorq %rax, %rax
+0x078: 70a600000000000000   | 	jmp testmi
+                            | 	
+0x081:                      | loopmi:	
+0x081: a00f                 | 	pushq %rax
+0x083: 50670000000000000000 | 	mrmovq (%rdi), %rsi
+0x08d: 80bc00000000000000   | 	call switchv
+0x096: 40070000000000000000 | 	rmmovq %rax, (%rdi)
+0x0a0: b00f                 | 	popq %rax
+0x0a2: 6087                 | 	addq %r8, %rdi
+0x0a4: 6090                 | 	addq %r9, %rax
+                            | 	
+0x0a6:                      | testmi:
+0x0a6: 30fc0800000000000000 | 	irmovq $8, %r12
+0x0b0: 610c                 | 	subq %rax, %r12
+0x0b2: 768100000000000000   | 	jg loopmi
+0x0bb: 90                   | 	ret
+                            | 
+0x0bc:                      | switchv:
+0x0bc: 30f21c01000000000000 | 	irmovq jmptable, %rdx
+0x0c6: 30fa0500000000000000 | 	irmovq $5, %r10
+0x0d0: 616a                 | 	subq %rsi, %r10
+0x0d2: 721101000000000000   | 	jl case_def
+0x0db: 6066                 | 	addq %rsi, %rsi
+0x0dd: 6066                 | 	addq %rsi, %rsi
+0x0df: 6066                 | 	addq %rsi, %rsi # rsi *= 8
+0x0e1: 6062                 | 	addq %rsi, %rdx
+0x0e3: 50b20000000000000000 | 	mrmovq (%rdx), %r11
+0x0ed: a0bf                 | 	pushq %r11
+0x0ef: 90                   | 	ret
+                            | 	
+0x0f0:                      | case0:
+0x0f0: 30f0aa0a000000000000 | 	irmovq $0xaaa, %rax
+0x0fa: 90                   | 	ret
+                            | 	
+0x0fb:                      | case25:
+0x0fb: 30f0bb0b000000000000 | 	irmovq $0xbbb, %rax
+0x105: 90                   | 	ret
+                            | 	
+0x106:                      | case3:
+0x106: 30f0cc0c000000000000 | 	irmovq $0xccc, %rax
+0x110: 90                   | 	ret
+                            | 	
+0x111:                      | case_def:
+0x111: 30f0dd0d000000000000 | 	irmovq $0xddd, %rax
+0x11b: 90                   | 	ret
+                            | 
+0x11c:                      | jmptable:
+0x11c: f000000000000000     | 	.quad case0
+0x124: 1101000000000000     | 	.quad case_def
+0x12c: fb00000000000000     | 	.quad case25
+0x134: 0601000000000000     | 	.quad case3
+0x13c: 1101000000000000     | 	.quad case_def
+0x144: fb00000000000000     | 	.quad case25	
+                            | 
+0x200:                      | 	.pos 0x200
+0x200:                      | stack:	
