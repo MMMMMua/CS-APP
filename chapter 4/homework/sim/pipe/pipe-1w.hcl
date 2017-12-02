@@ -205,7 +205,7 @@ word f_predPC = [
 
 ## What register should be used as the A source?
 word d_srcA = [
-	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : D_rA;
+	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ } : D_rA;
 	D_icode == IRET : RRSP;	
 	# D_icode in { IPOPQ, IRET } : RRSP;
 	1 : RNONE; # Don't need register # ipop is just iaddq which add rsp with a constant. 
@@ -214,20 +214,20 @@ word d_srcA = [
 ## What register should be used as the B source?
 word d_srcB = [
 	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ  } : D_rB;
-	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET , IPOP2} : RRSP;
 	1 : RNONE;  # Don't need register
 ];
 
 ## What register should be used as the E destination?
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IPOP2} : D_rB; # ipop2 writes target register.
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB; # ipop2 writes target register.
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
 
 ## What register should be used as the M destination?
 word d_dstM = [
-	D_icode in { IMRMOVQ, IPOPQ} : D_rA; # IPOP2 also need modification to source
+	D_icode in { IMRMOVQ, IPOP2 } : D_rA; # IPOP2 also need modification to source
 	# assert this line has no effect because dstM has been disabled!
 	1 : RNONE;  # Don't write any register
 ];
@@ -298,9 +298,9 @@ word e_dstE = [
 
 ## Select memory address
 word mem_addr = [
-	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ } : M_valE;
+	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ, IPOP2 } : M_valE;
 	# M_icode in { IPOPQ, IRET } : M_valA;
-	M_icode in { IPOP2, IRET } : M_valA; # the same as below, memory modification only happens in mrmovq stage 
+	M_icode in { IRET } : M_valA; # the same as below, memory modification only happens in mrmovq stage 
 	# Other instructions don't need address
 ];
 
@@ -367,9 +367,9 @@ bool F_stall =
 # At most one of these can be true.
 bool D_stall = 
 	# Conditions for a load/use hazard
-	# E_icode in { IMRMOVQ, IPOPQ } &&
-	E_icode == IPOPQ || 
-	E_icode == IMRMOVQ && 
+	E_icode in { IMRMOVQ, IPOPQ } &&
+	# E_icode == IPOPQ || 
+	# E_icode == IMRMOVQ && 
 	 E_dstM in { d_srcA, d_srcB };
 
 bool D_bubble =
@@ -377,8 +377,8 @@ bool D_bubble =
 	(E_icode == IJXX && !e_Cnd) ||
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
-	!(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
-	# !(E_icode in { IMRMOVQ } && E_dstM in { d_srcA, d_srcB }) &&
+	# !(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
+	!(E_icode in { IMRMOVQ } && E_dstM in { d_srcA, d_srcB }) &&
 	# 1W: This condition will change
 	  IRET in { D_icode, E_icode, M_icode };
 

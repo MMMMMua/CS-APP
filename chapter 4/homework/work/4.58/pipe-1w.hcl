@@ -4,6 +4,17 @@
 #    Copyright (C) Randal E. Bryant, David R. O'Hallaron, 2014     #
 ####################################################################
 
+## Your task is to modify the design so that on any cycle, only
+## one of the two possible (valE and valM) register writes will occur.
+## This requires special handling of the popq instruction.
+## Overall strategy:  IPOPQ passes through pipe, 
+## treated as stack pointer increment, but not incrementing the PC
+## On refetch, modify fetched icode to indicate an instruction "IPOP2",
+## which reads from memory.
+## This requires modifying the definition of f_icode
+## and lots of other changes.  Relevant positions to change
+## are indicated by comments starting with keyword "1W".
+
 ####################################################################
 #    C Include's.  Don't alter these                               #
 ####################################################################
@@ -33,6 +44,8 @@ wordsig ICALL	'I_CALL'
 wordsig IRET	'I_RET'
 wordsig IPUSHQ	'I_PUSHQ'
 wordsig IPOPQ	'I_POPQ'
+# 1W: Special instruction code for second try of popq
+wordsig IPOP2	'I_POP2'
 
 ##### Symbolic represenations of Y86-64 function codes            #####
 wordsig FNONE    'F_NONE'        # Default function code
@@ -65,6 +78,8 @@ wordsig f_icode	'if_id_next->icode'  # (Possibly modified) instruction code
 wordsig f_ifun	'if_id_next->ifun'   # Fetched instruction function
 wordsig f_valC	'if_id_next->valc'   # Constant data of fetched instruction
 wordsig f_valP	'if_id_next->valp'   # Address of following instruction
+## 1W: Provide access to the PC value for the current instruction
+wordsig f_pc	'f_pc'               # Address of fetched instruction
 boolsig imem_error 'imem_error'	     # Error signal from instruction memory
 boolsig instr_valid 'instr_valid'    # Is fetched instruction valid?
 
@@ -137,8 +152,12 @@ word f_pc = [
 ];
 
 ## Determine icode of fetched instruction
+## 1W: To split ipopq into two cycles, need to be able to 
+## modify value of icode,
+## so that it will be IPOP2 when fetched for second time.
 word f_icode = [
 	imem_error : INOP;
+	imem_icode == IPOPQ && D_icode == IPOPQ: IPOP2;
 	1: imem_icode;
 ];
 
@@ -151,7 +170,7 @@ word f_ifun = [
 # Is instruction valid?
 bool instr_valid = f_icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IPOP2};
 
 # Determine status code for fetched instruction
 word f_stat = [
@@ -164,7 +183,7 @@ word f_stat = [
 # Does fetched instruction require a regid byte?
 bool need_regids =
 	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
-		     IIRMOVQ, IRMMOVQ, IMRMOVQ };
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ , IPOP2};
 
 # Does fetched instruction require a constant word?
 bool need_valC =
@@ -173,36 +192,43 @@ bool need_valC =
 # Predict next value of PC
 word f_predPC = [
 	f_icode in { IJXX, ICALL } : f_valC;
+	## 1W: Want to refetch popq one time
+	f_icode == IPOPQ : f_pc; # fetch popq one more time, but not twice.
 	1 : f_valP;
 ];
 
 ################ Decode Stage ######################################
 
+## W1: Strategy.  Decoding of popq rA should be treated the same
+## as would iaddq $8, %rsp
+## Decoding of pop2 rA treated same as mrmovq -8(%rsp), rA
 
 ## What register should be used as the A source?
 word d_srcA = [
-	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : D_rA;
-	D_icode in { IPOPQ, IRET } : RRSP;
-	1 : RNONE; # Don't need register
+	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ } : D_rA;
+	D_icode == IRET : RRSP;	
+	# D_icode in { IPOPQ, IRET } : RRSP;
+	1 : RNONE; # Don't need register # ipop is just iaddq which add rsp with a constant. 
 ];
 
 ## What register should be used as the B source?
 word d_srcB = [
 	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ  } : D_rB;
-	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET , IPOP2} : RRSP;
 	1 : RNONE;  # Don't need register
 ];
 
 ## What register should be used as the E destination?
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB;
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB; # ipop2 writes target register.
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
 
 ## What register should be used as the M destination?
 word d_dstM = [
-	D_icode in { IMRMOVQ, IPOPQ } : D_rA;
+	D_icode in { IMRMOVQ, IPOP2 } : D_rA; # IPOP2 also need modification to source
+	# assert this line has no effect because dstM has been disabled!
 	1 : RNONE;  # Don't write any register
 ];
 
@@ -233,7 +259,9 @@ word d_valB = [
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
 	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
-	E_icode in { ICALL, IPUSHQ } : -8;
+	
+	# E_icode in { ICALL, IPUSHQ } : -8;
+	E_icode in { ICALL, IPUSHQ, IPOP2 } : -8; 
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
 ];
@@ -241,7 +269,7 @@ word aluA = [
 ## Select input B to ALU
 word aluB = [
 	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
-		     IPUSHQ, IRET, IPOPQ } : E_valB;
+		     IPUSHQ, IRET, IPOPQ , IPOP2 } : E_valB; # both ipopq and ipop2 need to calc real rsp value.
 	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
 	# Other instructions don't need ALU
 ];
@@ -270,13 +298,15 @@ word e_dstE = [
 
 ## Select memory address
 word mem_addr = [
-	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ } : M_valE;
-	M_icode in { IPOPQ, IRET } : M_valA;
+	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ, IPOP2 } : M_valE;
+	# M_icode in { IPOPQ, IRET } : M_valA;
+	M_icode in { IRET } : M_valA; # the same as below, memory modification only happens in mrmovq stage 
 	# Other instructions don't need address
 ];
 
 ## Set read control signal
-bool mem_read = M_icode in { IMRMOVQ, IPOPQ, IRET };
+# bool mem_read = M_icode in { IMRMOVQ, IPOPQ, IRET};
+bool mem_read = M_icode in { IMRMOVQ, IPOP2, IRET}; # notice that ipop no longer read value from memory.
 
 ## Set write control signal
 bool mem_write = M_icode in { IRMMOVQ, IPUSHQ, ICALL };
@@ -289,17 +319,31 @@ word m_stat = [
 ];
 #/* $end pipe-m_stat-hcl */
 
+################ Write back stage ##################################
+
+## 1W: For this problem, we introduce a multiplexor that merges
+## valE and valM into a single value for writing to register port E.
+## DO NOT CHANGE THIS LOGIC
+## Merge both write back sources onto register port E 
 ## Set E port register ID
-word w_dstE = W_dstE;
+word w_dstE = [
+	## writing from valM
+	W_dstM != RNONE : W_dstM;
+	1: W_dstE;
+];
 
 ## Set E port value
-word w_valE = W_valE;
+word w_valE = [
+	W_dstM != RNONE : W_valM;
+	1: W_valE;
+];
 
+## Disable register port M
 ## Set M port register ID
-word w_dstM = W_dstM;
+word w_dstM = RNONE;
 
 ## Set M port value
-word w_valM = W_valM;
+word w_valM = 0;
 
 ## Update processor status
 word Stat = [
@@ -324,6 +368,8 @@ bool F_stall =
 bool D_stall = 
 	# Conditions for a load/use hazard
 	E_icode in { IMRMOVQ, IPOPQ } &&
+	# E_icode == IPOPQ || 
+	# E_icode == IMRMOVQ && 
 	 E_dstM in { d_srcA, d_srcB };
 
 bool D_bubble =
@@ -331,7 +377,9 @@ bool D_bubble =
 	(E_icode == IJXX && !e_Cnd) ||
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
-	!(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
+	# !(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
+	!(E_icode in { IMRMOVQ } && E_dstM in { d_srcA, d_srcB }) &&
+	# 1W: This condition will change
 	  IRET in { D_icode, E_icode, M_icode };
 
 # Should I stall or inject a bubble into Pipeline Register E?
@@ -354,3 +402,24 @@ bool M_bubble = m_stat in { SADR, SINS, SHLT } || W_stat in { SADR, SINS, SHLT }
 bool W_stall = W_stat in { SADR, SINS, SHLT };
 bool W_bubble = 0;
 #/* $end pipe-all-hcl */
+
+# 11 instructions executed
+# Status = HLT
+# Condition Codes: Z=1 S=0 O=0
+# Changed Register State:
+# %rax:   0x0000000000000000      0x000000000000abcd
+# %rsp:   0x0000000000000000      0x000000000000abcd
+# Changed Memory State:
+# 0x00f8: 0x0000000000000000      0x000000000000abcd
+# CPI: 7 cycles/5 instructions = 1.40
+
+# 这个是 pop 的执行结果, 可以发现, 这个和普通的 pop 的执行逻辑是一致的.
+
+# 其中测试程序如下:
+
+#                             | # Test of Pop semantics for Y86-64
+# 0x000: 30f40001000000000000 | 	irmovq $0x100,%rsp  # Initialize stack pointer
+# 0x00a: 30f0cdab000000000000 | 	irmovq $0xABCD,%rax 
+# 0x014: a00f                 | 	pushq  %rax         # Put known value on stack
+# 0x016: b04f                 | 	popq   %rsp         # Either get 0xABCD, or 0xfc
+# 0x018: 00                   | 	halt
