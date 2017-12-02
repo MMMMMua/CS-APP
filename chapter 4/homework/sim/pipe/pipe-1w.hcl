@@ -157,6 +157,7 @@ word f_pc = [
 ## so that it will be IPOP2 when fetched for second time.
 word f_icode = [
 	imem_error : INOP;
+	imem_icode == IPOPQ && D_icode == IPOPQ: IPOP2;
 	1: imem_icode;
 ];
 
@@ -169,7 +170,7 @@ word f_ifun = [
 # Is instruction valid?
 bool instr_valid = f_icode in 
 	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
-	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ };
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IPOP2};
 
 # Determine status code for fetched instruction
 word f_stat = [
@@ -182,7 +183,7 @@ word f_stat = [
 # Does fetched instruction require a regid byte?
 bool need_regids =
 	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
-		     IIRMOVQ, IRMMOVQ, IMRMOVQ };
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ , IPOP2};
 
 # Does fetched instruction require a constant word?
 bool need_valC =
@@ -192,6 +193,7 @@ bool need_valC =
 word f_predPC = [
 	f_icode in { IJXX, ICALL } : f_valC;
 	## 1W: Want to refetch popq one time
+	f_icode == IPOPQ : f_pc; # fetch popq one more time, but not twice.
 	1 : f_valP;
 ];
 
@@ -204,8 +206,9 @@ word f_predPC = [
 ## What register should be used as the A source?
 word d_srcA = [
 	D_icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : D_rA;
-	D_icode in { IPOPQ, IRET } : RRSP;
-	1 : RNONE; # Don't need register
+	D_icode == IRET : RRSP;	
+	# D_icode in { IPOPQ, IRET } : RRSP;
+	1 : RNONE; # Don't need register # ipop is just iaddq which add rsp with a constant. 
 ];
 
 ## What register should be used as the B source?
@@ -217,14 +220,15 @@ word d_srcB = [
 
 ## What register should be used as the E destination?
 word d_dstE = [
-	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ} : D_rB;
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IPOP2} : D_rB; # ipop2 writes target register.
 	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
 	1 : RNONE;  # Don't write any register
 ];
 
 ## What register should be used as the M destination?
 word d_dstM = [
-	D_icode in { IMRMOVQ, IPOPQ } : D_rA;
+	D_icode in { IMRMOVQ, IPOPQ} : D_rA; # IPOP2 also need modification to source
+	# assert this line has no effect because dstM has been disabled!
 	1 : RNONE;  # Don't write any register
 ];
 
@@ -255,7 +259,9 @@ word d_valB = [
 word aluA = [
 	E_icode in { IRRMOVQ, IOPQ } : E_valA;
 	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ } : E_valC;
-	E_icode in { ICALL, IPUSHQ } : -8;
+	
+	# E_icode in { ICALL, IPUSHQ } : -8;
+	E_icode in { ICALL, IPUSHQ, IPOP2 } : -8; 
 	E_icode in { IRET, IPOPQ } : 8;
 	# Other instructions don't need ALU
 ];
@@ -263,7 +269,7 @@ word aluA = [
 ## Select input B to ALU
 word aluB = [
 	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
-		     IPUSHQ, IRET, IPOPQ } : E_valB;
+		     IPUSHQ, IRET, IPOPQ , IPOP2 } : E_valB; # both ipopq and ipop2 need to calc real rsp value.
 	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
 	# Other instructions don't need ALU
 ];
@@ -293,12 +299,14 @@ word e_dstE = [
 ## Select memory address
 word mem_addr = [
 	M_icode in { IRMMOVQ, IPUSHQ, ICALL, IMRMOVQ } : M_valE;
-	M_icode in { IPOPQ, IRET } : M_valA;
+	# M_icode in { IPOPQ, IRET } : M_valA;
+	M_icode in { IPOP2, IRET } : M_valA; # the same as below, memory modification only happens in mrmovq stage 
 	# Other instructions don't need address
 ];
 
 ## Set read control signal
-bool mem_read = M_icode in { IMRMOVQ, IPOPQ, IRET };
+# bool mem_read = M_icode in { IMRMOVQ, IPOPQ, IRET};
+bool mem_read = M_icode in { IMRMOVQ, IPOP2, IRET}; # notice that ipop no longer read value from memory.
 
 ## Set write control signal
 bool mem_write = M_icode in { IRMMOVQ, IPUSHQ, ICALL };
@@ -359,7 +367,9 @@ bool F_stall =
 # At most one of these can be true.
 bool D_stall = 
 	# Conditions for a load/use hazard
-	E_icode in { IMRMOVQ, IPOPQ } &&
+	# E_icode in { IMRMOVQ, IPOPQ } &&
+	E_icode == IPOPQ || 
+	E_icode == IMRMOVQ && 
 	 E_dstM in { d_srcA, d_srcB };
 
 bool D_bubble =
@@ -368,6 +378,7 @@ bool D_bubble =
 	# Stalling at fetch while ret passes through pipeline
 	# but not condition for a load/use hazard
 	!(E_icode in { IMRMOVQ, IPOPQ } && E_dstM in { d_srcA, d_srcB }) &&
+	# !(E_icode in { IMRMOVQ } && E_dstM in { d_srcA, d_srcB }) &&
 	# 1W: This condition will change
 	  IRET in { D_icode, E_icode, M_icode };
 
