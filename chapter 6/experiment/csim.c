@@ -53,8 +53,11 @@ mem_addr_t set_index_mask;
  */
 void initCache()
 {
- //todo...
-
+	cache = malloc(S * sizeof(cache_set_t));
+	for (int i = 0; i < S; ++i) {
+		cache[i] = malloc(B * sizeof(cache_line_t));
+		memset(cache[i], 0, sizeof(cache[i])); //clear memeory.
+	}	
 }
 
 
@@ -63,8 +66,9 @@ void initCache()
  */
 void freeCache()
 {
- //todo...
-
+	for (int i = 0; i < S; ++i)
+		free(cache[i]);
+	free(cache);
 }
 
 
@@ -76,8 +80,10 @@ void freeCache()
  */
 void accessData(mem_addr_t addr)
 {
- //todo...
-
+	mem_addr_t _b = addr & (1 << (b-1));
+	mem_addr_t _s = (addr >> b) & (1 << (s-1));;
+	mem_addr_t _t = addr >> b + s;;
+	
 }
 
 
@@ -177,7 +183,8 @@ int main(int argc, char* argv[])
     }
 
     /* Compute S, E and B from command line args */
-    ...
+    S = 1 << s;
+	B = 1 << b;
  
     /* Initialize cache */
     initCache();
