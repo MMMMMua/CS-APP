@@ -55,7 +55,7 @@ void initCache()
 {
 	cache = malloc(S * sizeof(cache_set_t));
 	for (int i = 0; i < S; ++i) {
-		cache[i] = malloc(B * sizeof(cache_line_t));
+		cache[i] = malloc(E * sizeof(cache_line_t));
 		memset(cache[i], 0, sizeof(cache[i])); //clear memeory.
 	}	
 }
@@ -83,7 +83,36 @@ void accessData(mem_addr_t addr)
 	mem_addr_t _b = addr & (1 << (b-1));
 	mem_addr_t _s = (addr >> b) & (1 << (s-1));;
 	mem_addr_t _t = addr >> b + s;;
+	cache_set_t cline = cache[_s];
 	
+	for (int i = 0; i < E; ++i)
+		if (cline[i].valid && cline[i].tag == _t) {
+			hit_count++;
+			cline[i].lru = lru_counter++;
+			return;
+		}
+	
+	miss_count++;
+	unsigned long long int _min = ~0;
+	int id = -1;
+	
+	for (int i = 0; i < E; ++i)
+		if (cline[i].valid == false) {
+			cline[i].valid = true;
+			cline[i].tag = _t;
+			cline[i],lru = lru_counter++;
+			return;
+		}
+		else {
+			if (cline[i].lru < _min) {
+				_min = cline[i].lru;
+				id = i;
+			}
+		}
+
+	eviction_count++;
+	cline[id].tag = _t;
+	cline[id].lru = lru_counter++;
 }
 
 
