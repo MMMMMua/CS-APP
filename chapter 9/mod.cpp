@@ -20,18 +20,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+struct stat buf;
+
 int main() {
 	const char *fp = "hello.txt";
-	int fd = open(fp, O_RDWR);
+	int fd = open(fp, O_RDWR, 0);
 	if (fd == -1)
 		printf("file open error"), exit(0);
-	
-	void *bufp = mmap(NULL, 100, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0);
-	for (int i = 1; i <= 10; ++i) {
-		char *x = (char *)bufp;
-		putchar(*x);
-		(char*)bufp++;
+
+	fstat(fd, &buf);
 		
-	}
-		
+	char *bufp = (char *)mmap(NULL, buf.st_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+
+	bufp[0] = 'J';
+
+	int cls = close(fd);
+
+	printf("%d\n", cls);
 }
