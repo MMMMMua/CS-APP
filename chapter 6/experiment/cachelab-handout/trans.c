@@ -19,9 +19,60 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
  *     searches for that string to identify the transpose function to
  *     be graded. 
  */
+#define __tmp 4
+#define _tmp 8
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+	int i, j, k, l, sgn = 1;
+	for (i = 0; i < N; i += _tmp)
+		for (j = 0; j < M; j += __tmp) {
+			if (sgn == 1)
+				for (k = 0; k < _tmp && i + k < N; ++k) {
+					int x[__tmp] = {};
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						x[l] = A[i+k][j+l];
+					
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						B[j+l][i+k] = x[l];
+				}
+			else
+				for (k = 0; k < _tmp && i + k < N; ++k) {
+					int x[__tmp] = {};
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						x[l] = A[i+(_tmp-k-1)][j+l];
+					
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						B[j+l][i+(_tmp-k-1)] = x[l];
+				}
+			sgn = -sgn;
+		}
+}
+
+
+char transpose_submit1_desc[] = "Transpose submission1";
+void transpose_submit1(int M, int N, int A[N][M], int B[M][N])
+{
+	int i, j, k, l, sgn = 1;
+	for (j = 0; j < M; j += __tmp)
+		for (i = 0; i < N; i += _tmp)
+			for (k = 0; k < _tmp && i + k < N; ++k) {
+				int x[__tmp] = {};
+				if (sgn == 1) {
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						x[l] = A[i+k][j+l];
+				
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						B[j+l][i+k] = x[l];
+				}else {					
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						x[l] = A[i+k][j+(__tmp-l-1)];
+				
+					for (l = 0; l < __tmp && j + l < M; ++l)
+						B[j+(__tmp-l-1)][i+k] = x[l];
+				}
+				sgn = -sgn;
+			}
 }
 
 /* 
@@ -57,7 +108,7 @@ void registerFunctions()
 {
     /* Register your solution function */
     registerTransFunction(transpose_submit, transpose_submit_desc); 
-
+    /* registerTransFunction(transpose_submit1, transpose_submit_desc1);  */
     /* Register any additional transpose functions */
     registerTransFunction(trans, trans_desc); 
 

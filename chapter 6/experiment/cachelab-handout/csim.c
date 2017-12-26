@@ -81,8 +81,8 @@ void freeCache()
 void accessData(mem_addr_t addr)
 {
 	// mem_addr_t _b = addr & (1 << (b-1));
-	mem_addr_t _s = (addr >> b) & (1 << (s-1));;
-	mem_addr_t _t = addr >> (b + s);;
+	mem_addr_t _s = (addr >> b) & ((1 << s)-1);
+	mem_addr_t _t = addr >> (b + s);
 	cache_set_t cline = cache[_s];
 	
 	for (int i = 0; i < E; ++i)
@@ -170,6 +170,13 @@ void printUsage(char* argv[])
     printf("  linux>  %s -v -s 8 -E 2 -b 4 -t traces/yi.trace\n", argv[0]);
     exit(0);
 }
+
+/* /\* */
+/*  * self-wriiten printSummary function */
+/*  *\/ */
+/* void printSummary(int hit_count, int miss_count, int eviction_count) { */
+/* 	printf("hits:%d misses:%d evictions:%d\n", hit_count, miss_count, eviction_count); */
+/* } */
 
 /*
  * main - Main routine 
