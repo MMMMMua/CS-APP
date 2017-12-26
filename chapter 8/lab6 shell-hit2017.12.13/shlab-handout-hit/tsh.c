@@ -421,7 +421,7 @@ void sigint_handler(int sig)
 		int _fgpid =  fgpid(jobs);
 		
 		if (_fgpid != 0) {
-			kill(_fgpid, SIGINT);
+			kill(-_fgpid, SIGINT);
 			
 			struct job_t *fgjob = getjobpid(jobs, _fgpid);
 			
