@@ -383,7 +383,10 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+	/* sigset_t mask; */
+	/* sigaddset(&mask, SIGCHLD); */
 	while (fgpid(jobs) == pid)
+		/* sigsuspend(&mask); */
 		sleep(1);
     return;
 }
@@ -403,8 +406,26 @@ void sigchld_handler(int sig)
 {
 	if (sig == SIGCHLD) {
 		pid_t pid;
-		while ((pid = waitpid(-1, NULL, 0)) > 0) {
-			deletejob(jobs, pid);
+		int statusp = 0;
+		
+		while ((pid = waitpid(-1, &statusp, WNOHANG | WUNTRACED)) > 0) {
+			if (WIFSTOPPED(statusp)) {
+				struct job_t *job = getjobpid(jobs, pid);
+			
+				job->state = ST;
+				printf("Job [%d] (%d) stopped by signal %d\n",
+					   job->jid, job->pid, WSTOPSIG(statusp));
+			}
+			else {
+				if (WIFSIGNALED(statusp)) {
+					struct job_t *job = getjobpid(jobs, pid);
+			
+					job->state = ST;
+					printf("Job [%d] (%d) terminated by signal %d\n",
+						   job->jid, job->pid, WTERMSIG(statusp));
+				}
+				deletejob(jobs, pid);
+			}
 		}
 	}
     return;
@@ -422,12 +443,6 @@ void sigint_handler(int sig)
 		
 		if (_fgpid != 0) {
 			kill(-_fgpid, SIGINT);
-			
-			struct job_t *fgjob = getjobpid(jobs, _fgpid);
-			
-			fgjob->state = ST;
-			printf("Job [%d] (%d) terminated by signal %d\n",
-				   fgjob->jid, fgjob->pid, sig);
 		}		
 	}
     return;
@@ -435,7 +450,7 @@ void sigint_handler(int sig)
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
- *     the user types ctrl-z at the keyboard. Catch it and suspend the
+ *     the user types ctrl-z at the keyboard. Catch it and suspend teh
  *     foreground job by sending it a SIGTSTP.  
  */
 void sigtstp_handler(int sig) 
@@ -445,12 +460,6 @@ void sigtstp_handler(int sig)
 		
 		if (_fgpid != 0) {
 			kill(_fgpid, SIGTSTP);			
-
-			struct job_t *fgjob = getjobpid(jobs, _fgpid);
-			
-			fgjob->state = ST;
-			printf("Job [%d] (%d) stopped by signal %d\n",
-				   fgjob->jid, fgjob->pid, sig);
 		}
 	}
     return;

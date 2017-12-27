@@ -6,7 +6,7 @@ string stdprog = "./tshref";
 
 char s1[1010], s2[1010];
 int main() {
-	for (int i = 12; i <= 14; ++i) {
+	for (int i = 12; i <= 16; ++i) {
 		string file = (((string)"trace" + char('0'+i/10)) + char('0'+i%10)) + (string)".txt";
 		string mycmd = "./sdriver.pl -t " + file + " -s " + myprog + " -a \"-p\" > mytest.out";
 		string stdcmd = "./sdriver.pl -t " + file + " -s " + stdprog + " -a \"-p\" > stdtest.out";		
@@ -33,14 +33,15 @@ int main() {
 		
 		printf("Test %d passed\n", i);
 		fclose(mytest);
-		fclose(stdtest);		
+		fclose(stdtest);
+		getchar();
 		continue;
 		
 	  fail:
 		printf("Test %d failed\n", i);
 		fclose(mytest);
 		fclose(stdtest);
-		exit(0);
+		getchar();
 	}
 
 	system("rm mytest.out");
