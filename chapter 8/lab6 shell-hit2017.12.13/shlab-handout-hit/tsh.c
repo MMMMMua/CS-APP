@@ -459,7 +459,7 @@ void sigtstp_handler(int sig)
 		int _fgpid =  fgpid(jobs);
 		
 		if (_fgpid != 0) {
-			kill(_fgpid, SIGTSTP);			
+			kill(-_fgpid, SIGTSTP);			
 		}
 	}
     return;
