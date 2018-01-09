@@ -3,10 +3,10 @@
 #
 TEAM = bovik
 VERSION = 1
-HANDINDIR = /afs/cs.cmu.edu/academic/class/15213-f01/malloclab/handin
+HANDINDIR = /home/mmmmmua/文档/程序/CS-APP/chapter 9/hit-lab7 malloc/malloclab-handout 2/
 
 CC = gcc
-CFLAGS = -Wall -O2 -m32
+CFLAGS = -Wall -O3 -m32
 
 OBJS = mdriver.o mm.o memlib.o fsecs.o fcyc.o clock.o ftimer.o
 
